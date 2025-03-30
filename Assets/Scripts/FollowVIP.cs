@@ -1,10 +1,13 @@
 using UnityEngine;
+using UnityEngine.AI;
 using NodeCanvas.Framework;
 using ParadoxNotion.Design;
-using UnityEngine.AI;
 
 namespace NodeCanvas.Tasks.Actions
 {
+
+    [Category("Custom/Movement")]
+    [Description("Follow the VIP using NavMeshAgent, with periodic reevaluation to check for enemies.")]
     public class FollowVIP : ActionTask<Transform>
     {
 
@@ -12,15 +15,17 @@ namespace NodeCanvas.Tasks.Actions
         public BBParameter<Transform> vipTarget;
 
         public float stoppingDistance = 2f;
+        public float followDuration = 1.0f; // Duration before reevaluating
 
-        private NavMeshAgent NavAgent;
+        private NavMeshAgent navAgent;
+        private float followTimer;
 
         protected override string OnInit()
         {
-            NavAgent = NavAgent ?? agent.GetComponent<NavMeshAgent>();
-            if (agent == null)
+            navAgent = agent.GetComponent<NavMeshAgent>();
+            if (navAgent == null)
             {
-                return "NavMeshAgent is missing on the agent!";
+                return "Missing NavMeshAgent on agent GameObject!";
             }
             return null;
         }
@@ -29,12 +34,15 @@ namespace NodeCanvas.Tasks.Actions
         {
             if (vipTarget.isNull || vipTarget.value == null)
             {
-                Debug.LogWarning("VIP target is not assigned or missing!");
                 EndAction(false);
                 return;
             }
 
-            NavAgent.isStopped = false;
+            followTimer = followDuration;
+
+            navAgent.stoppingDistance = stoppingDistance;
+            navAgent.isStopped = false;
+            navAgent.SetDestination(vipTarget.value.position);
         }
 
         protected override void OnUpdate()
@@ -45,31 +53,30 @@ namespace NodeCanvas.Tasks.Actions
                 return;
             }
 
-            Vector3 targetPos = vipTarget.value.position;
-            float distance = Vector3.Distance(agent.transform.position, targetPos);
+            followTimer -= Time.deltaTime;
 
-            NavAgent.SetDestination(targetPos);
+            navAgent.SetDestination(vipTarget.value.position); // Update VIP position dynamically
 
-            if (distance <= stoppingDistance)
+            if (followTimer <= 0f)
             {
-                NavAgent.isStopped = true;
-                EndAction(true); // Task successful
+                navAgent.isStopped = true;
+                EndAction(true); // Reevaluate behavior tree
             }
         }
 
         protected override void OnStop()
         {
-            if (agent != null)
+            if (navAgent != null)
             {
-                NavAgent.isStopped = true;
+                navAgent.isStopped = true;
             }
         }
 
         protected override void OnPause()
         {
-            if (agent != null)
+            if (navAgent != null)
             {
-                NavAgent.isStopped = true;
+                navAgent.isStopped = true;
             }
         }
     }
